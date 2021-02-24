@@ -495,7 +495,7 @@ int main(int argc, char* argv[]) {
         if ( isStartup || ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO)) ) 
         {
             isStartup = false;
-            printf("do slot machine\n");
+            printf("Do cathode poisoning protection\n");
             // Run cathode poisoning protection 
             
             int characterToDisplay = ASCII_ZERO;
