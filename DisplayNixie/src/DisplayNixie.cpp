@@ -30,7 +30,8 @@ bool HV5222;
 #define I2CFlush 0
 
 #define DEBOUNCE_DELAY 150
-#define TOTAL_DELAY 17
+#define TOTAL_DELAY 20
+#define CATHODE_PROTECTION_DELAY 200
 
 #define SECOND_REGISTER 0x0
 #define MINUTE_REGISTER 0x1
@@ -44,7 +45,7 @@ bool HV5222;
 #define GREEN_LIGHT_PIN 27
 #define BLUE_LIGHT_PIN 29
 #define MAX_POWER 100
-#define INIT_CYCLE_FREQ 5
+#define INIT_CYCLE_FREQ 1
 #define INIT_CYCLE_BUMP 5
 
 #define UPPER_DOTS_MASK 0x80000000
@@ -54,6 +55,13 @@ bool HV5222;
 #define LEFT_BUFFER_START 0
 #define RIGHT_REPR_START 2
 #define RIGHT_BUFFER_START 4
+
+#define ASCII_ZERO 48
+#define ASCII_NINE 57
+
+#define DISPLAY_POS_M2 3
+#define DISPLAY_POS_S1 4
+#define DISPLAY_POS_S2 5
 
 uint16_t SymbolArray[10]={1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 
@@ -65,6 +73,7 @@ int lightCycle = 0;
 bool dotState = 0;
 int rotator = 0;
 int cycleFreq = INIT_CYCLE_FREQ;
+char _lastStringDisplayed[8];
 
 // Set initial fireworks mode true=on; false=off
 bool doFireworks = false;
@@ -77,6 +86,8 @@ bool useSystemRTC = true;
 // Set use12hour = true for hours 0-12 and 1-11 (e.g. a.m./p.m. implied)
 // Set use12hour = false for hours 0-23
 bool use12hour = true;
+
+bool isStartup = true;
 
 int bcdToDec(int val) {
 	return ((val / 16  * 10) + (val % 16));
@@ -177,7 +188,7 @@ void funcMode(void) {
 	static unsigned long modeTime = 0;
 	if ((millis() - modeTime) > DEBOUNCE_DELAY) {
 		puts("MODE button was pressed.");
-// Mode Switch toggles Fireworks on/off
+        // Mode Switch toggles Fireworks on/off
 		doFireworks = !doFireworks;
 		if (!doFireworks)
 			resetFireWorks();
@@ -190,7 +201,7 @@ void funcMode(void) {
 void funcUp(void) {
 	static unsigned long buttonTime = 0;
 	if ((millis() - buttonTime) > DEBOUNCE_DELAY) {
-// UP button speeds up Fireworks
+        // UP button speeds up Fireworks
 		cycleFreq = ((cycleFreq + INIT_CYCLE_BUMP) / INIT_CYCLE_BUMP ) * INIT_CYCLE_BUMP;
 		if (cycleFreq >= MAX_POWER / 2 )
 		{
@@ -206,7 +217,7 @@ void funcUp(void) {
 void funcDown(void) {
 	static unsigned long buttonTime = 0;
 	if ((millis() - buttonTime) > DEBOUNCE_DELAY) {
-// Down button slows down Fireworks
+        // Down button slows down Fireworks
 		cycleFreq = ((cycleFreq - INIT_CYCLE_BUMP) / INIT_CYCLE_BUMP ) * INIT_CYCLE_BUMP;
 		if (cycleFreq <= 1 )
 		{
@@ -238,13 +249,16 @@ void fillBuffer(uint32_t var32, unsigned char * buffer, int start) {
 
 void dotBlink()
 {
-	static unsigned int lastTimeBlink=millis();
+	/*
+    static unsigned int lastTimeBlink=millis();
 
 	if ((millis() - lastTimeBlink) >= 1000)
 	{
 		lastTimeBlink=millis();
 		dotState = !dotState;
 	}
+    */
+    dotState = !dotState;
 }
 
 void rotateFireWorks() {
@@ -299,6 +313,40 @@ void signal_handler (int sig_received)
 //uint64_t* reverseBit(uint64_t num);
 uint64_t reverseBit(uint64_t num);
 
+void displayOnTubes(char* _stringToDisplayOnTubes)
+{
+    unsigned char buff[8];
+
+    uint32_t var32 = get32Rep(_stringToDisplayOnTubes, LEFT_REPR_START);
+    var32 = addBlinkTo32Rep(var32);
+    fillBuffer(var32, buff , LEFT_BUFFER_START);
+
+    var32 = get32Rep(_stringToDisplayOnTubes, RIGHT_REPR_START);
+    var32 = addBlinkTo32Rep(var32);
+    fillBuffer(var32, buff , RIGHT_BUFFER_START);
+
+    digitalWrite(LEpin, LOW);
+
+    if (HV5222)
+    {
+        uint64_t reverseBuffValue;
+        reverseBuffValue = reverseBit(*(uint64_t*)buff);
+        buff[4]=reverseBuffValue;
+        buff[5]=reverseBuffValue>>8;
+        buff[6]=reverseBuffValue>>16;
+        buff[7]=reverseBuffValue>>24;
+        buff[0]=reverseBuffValue>>32;
+        buff[1]=reverseBuffValue>>40;
+        buff[2]=reverseBuffValue>>48;
+        buff[3]=reverseBuffValue>>56;
+    }
+
+    wiringPiSPIDataRW(0, buff, 8);
+    digitalWrite(LEpin, HIGH);
+    strcpy(_lastStringDisplayed, _stringToDisplayOnTubes);
+}
+
+
 int main(int argc, char* argv[]) {
 
 	// Setup signal handlers
@@ -317,7 +365,7 @@ int main(int argc, char* argv[]) {
 	softPwmCreate(BLUE_LIGHT_PIN, 0, MAX_POWER);
 
 
-// Crude command-line argument handling
+    // Crude command-line argument handling
 	if (argc >= 2)
 	{
 		int curr_arg = 1;
@@ -342,52 +390,52 @@ int main(int argc, char* argv[]) {
 			curr_arg += 1;
 		}
 	}
-		 
 
-// Tell the user the RTC mode
+    // Tell the user the RTC mode
 	if (useSystemRTC)
 		puts("Using system RTC (eg. NTP assisted accuracy).");
 	else
 		puts("Using Nixie embedded RTC (e.g. not NTP assisted).");
 
-// Tell the user the hour mode
+    // Tell the user the hour mode
 	if (use12hour)
 		puts("Using 12-hour display (implied a.m./p.m.).");
 	else
 		puts("Using 24-hour display.");
 
-// Tell the user the fireworks mode
+    // Tell the user the fireworks mode
 	if (doFireworks)
 		puts("Fireworks ENABLED at start.");
 	else
 		puts("Fireworks DISABLED at start.");
 
-// Further setup...
+    // Further setup...
 	initPin(UP_BUTTON_PIN);
 	initPin(DOWN_BUTTON_PIN);
 	initPin(MODE_BUTTON_PIN);
 
-// Initial setup for multi-color LED's based on default doFirewworks boolean
-	if (doFireworks)
+    // Initial setup for multi-color LED's based on default doFirewworks boolean
+	if (doFireworks) {
 		softPwmCreate(RED_LIGHT_PIN, 100, MAX_POWER);
-	else
+    }
+    else
 	{
 		softPwmCreate(RED_LIGHT_PIN, 0, MAX_POWER);
 		resetFireWorks();
 	}
 
-// Mode Switch toggles Fireworks on/off
-	wiringPiISR(MODE_BUTTON_PIN,INT_EDGE_RISING,&funcMode);
+    // Mode Switch toggles Fireworks on/off
+	wiringPiISR(MODE_BUTTON_PIN, INT_EDGE_RISING, &funcMode);
 
-// Open the Nixie device
+    // Open the Nixie device
 	fileDesc = wiringPiI2CSetup(I2CAdress);
 
-// Further date setup
+    // Further date setup
 	tm date = getRTCDate();
 	time_t seconds = time(NULL);
 	tm* timeinfo = localtime (&seconds);
 
-// Tell the user the SPI status
+    // Tell the user the SPI status
 	if (wiringPiSPISetupMode (0, 2000000, 2)) {
 		puts("SPI ok");
 	}
@@ -398,18 +446,16 @@ int main(int argc, char* argv[]) {
 
 	pinMode(R5222_PIN, INPUT);
 	pullUpDnControl(R5222_PIN, PUD_UP);
-	HV5222=!digitalRead(R5222_PIN);
+	HV5222 = !digitalRead(R5222_PIN);
 	if (HV5222) puts("R52222 resistor detected. HV5222 algorithm is used.");
-	uint64_t reverseBuffValue;
 
-// Loop forever displaying the time
+    // Loop forever displaying the time
 	long buttonDelay = millis();
 
 	do {
 		char _stringToDisplay[8];
 
-
-// NOTE:  RTC relies on system to keep time (e.g. NTP assisted for accuracy).
+        // NOTE:  RTC relies on system to keep time (e.g. NTP assisted for accuracy).
 		if (useSystemRTC)
 		{
 			seconds = time(NULL);
@@ -421,29 +467,13 @@ int main(int argc, char* argv[]) {
 			writeRTCDate(*timeinfo);
 		}
 
-// NOTE:  RTC relies on Nixie to keep time (e.g. no NTP).
+        // NOTE:  RTC relies on Nixie to keep time (e.g. no NTP).
 		date = getRTCDate();
 
 		char* format = (char*) "%H%M%S";
 		strftime(_stringToDisplay, 8, format, &date);
-
-
-		pinMode(LEpin, OUTPUT);
-		dotBlink();
-
-		unsigned char buff[8];
-
-		uint32_t var32 = get32Rep(_stringToDisplay, LEFT_REPR_START);
-		var32 = addBlinkTo32Rep(var32);
-		fillBuffer(var32, buff , LEFT_BUFFER_START);
-
-		var32 = get32Rep(_stringToDisplay, RIGHT_REPR_START);
-		var32 = addBlinkTo32Rep(var32);
-		fillBuffer(var32, buff , RIGHT_BUFFER_START);
-
-
-
-		if (doFireworks)
+        
+        if (doFireworks)
 		{
 			// Handle Fireworks speed UP / Down
 			if (digitalRead(UP_BUTTON_PIN) == 0 && (millis() - buttonDelay) > DEBOUNCE_DELAY) {
@@ -459,28 +489,48 @@ int main(int argc, char* argv[]) {
 			rotateFireWorks();
 		}
 
-		digitalWrite(LEpin, LOW);
-
-		if (HV5222)
-		{
-			reverseBuffValue=reverseBit(*(uint64_t*)buff);
-			buff[4]=reverseBuffValue;
-			buff[5]=reverseBuffValue>>8;
-			buff[6]=reverseBuffValue>>16;
-			buff[7]=reverseBuffValue>>24;
-			buff[0]=reverseBuffValue>>32;
-			buff[1]=reverseBuffValue>>40;
-			buff[2]=reverseBuffValue>>48;
-			buff[3]=reverseBuffValue>>56;
-		}
-
-		wiringPiSPIDataRW(0, buff, 8);
-		digitalWrite(LEpin, HIGH);
-		delay (TOTAL_DELAY);
+		pinMode(LEpin, OUTPUT);
+		
+        // On startup and every ten minutes, invoke cathode poisoning protection 
+        if ( isStartup || ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO)) ) 
+        {
+            isStartup = false;
+            printf("do slot machine\n");
+            // Run cathode poisoning protection 
+            
+            int characterToDisplay = ASCII_ZERO;
+            
+            for (int cycleIndex = 0; cycleIndex < 10; cycleIndex++) {
+                characterToDisplay = ASCII_ZERO + cycleIndex;
+                //printf("characterToDisplay = %d\n", characterToDisplay);
+                
+                for (int stringIndex = 0; stringIndex <= DISPLAY_POS_S2; stringIndex++) {
+                    _stringToDisplay[stringIndex] = char(characterToDisplay);
+                    
+                    characterToDisplay++;
+                    if (characterToDisplay > ASCII_NINE) {
+                        characterToDisplay = ASCII_ZERO;
+                    }
+                }
+                //printf("_stringToDisplay = ~%s~\n", _stringToDisplay);              
+                
+                displayOnTubes(_stringToDisplay);
+                delay (CATHODE_PROTECTION_DELAY);
+            }
+        }
+        
+        if (strcmp(_lastStringDisplayed, _stringToDisplay) != 0) {
+            printf("_stringToDisplay = ~%s~\n", _stringToDisplay);
+            dotBlink();
+            displayOnTubes(_stringToDisplay);        
+            delay (TOTAL_DELAY);
+        }
 	}
 	while (true);
 	return 0;
 }
+
+
 
 //uint64_t* reverseBit(uint64_t num)
 uint64_t reverseBit(uint64_t num)
