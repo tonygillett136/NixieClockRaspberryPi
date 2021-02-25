@@ -30,8 +30,11 @@ bool HV5222;
 #define I2CFlush 0
 
 #define DEBOUNCE_DELAY 150
-#define TOTAL_DELAY 20
-#define CATHODE_PROTECTION_DELAY 200
+#define TOTAL_DELAY 10
+#define CATHODE_PROTECTION_DELAY_SHORT 100
+#define CATHODE_PROTECTION_DELAY_LONG 10000
+#define CATHODE_PROTECTION_LONG_TIME_1 "020000" // Must align to an hour
+#define CATHODE_PROTECTION_LONG_TIME_2 "040000" // Must align to an hour
 
 #define SECOND_REGISTER 0x0
 #define MINUTE_REGISTER 0x1
@@ -87,6 +90,7 @@ bool useSystemRTC = true;
 // Set use12hour = false for hours 0-23
 bool use12hour = true;
 bool isStartup = true;
+bool cathodeProtection = true;
 
 int bcdToDec(int val) {
 	return ((val / 16  * 10) + (val % 16));
@@ -348,7 +352,6 @@ int main(int argc, char* argv[]) {
 	softPwmCreate(GREEN_LIGHT_PIN, 0, MAX_POWER);
 	softPwmCreate(BLUE_LIGHT_PIN, 0, MAX_POWER);
 
-
     // Crude command-line argument handling
 	if (argc >= 2)
 	{
@@ -361,6 +364,8 @@ int main(int argc, char* argv[]) {
 				use12hour = false;
 			else if (!strcmp(argv[curr_arg],"fireworks"))
 				doFireworks = true;
+            else if (!strcmp(argv[curr_arg],"noprotect"))
+                cathodeProtection = false;
 			else
 			{
 				printf("ERROR: %s Unknown argument, \"%s\" on command line.\n\n", argv[0], argv[1]);
@@ -368,6 +373,7 @@ int main(int argc, char* argv[]) {
 				printf("       %s nosysclock -- use Nixie clock (e.g. not NTP assisted).\n", argv[0]);
 				printf("       %s 24hour     -- use 24-hour mode.\n", argv[0]);
 				printf("       %s fireworks  -- enable fireworks.\n", argv[0]);
+                printf("       %s noprotect  -- disable cathode poisoning protection.\n", argv[0]);
 				puts("\nNOTE:  Any combination/order of above arguments is allowed.\n");
 				exit(10);
 			}
@@ -479,12 +485,22 @@ int main(int argc, char* argv[]) {
 
 		pinMode(LEpin, OUTPUT);
 		
-        // On startup and every ten minutes, invoke cathode poisoning protection 
-        if ( isStartup || ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO)) ) 
+        // On startup and every ten minutes, invoke short cathode poisoning protection 
+        if ( 
+          cathodeProtection && 
+          (isStartup || ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO)))
+          ) 
         {
-            isStartup = false;
-            printf("Do cathode poisoning protection\n");
             // Run cathode poisoning protection 
+			printf("Do cathode poisoning protection\n");
+			
+            isStartup = false;
+			int cathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_SHORT;
+			// Run extended version of cathode protection twice daily
+			if ((strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_1) == 0) || (strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_2) == 0)) {
+				printf("Do cathode poisoning protection (long version)\n");
+				cathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_LONG;
+			}			
             
             int characterToDisplay = ASCII_ZERO;
             
@@ -503,24 +519,22 @@ int main(int argc, char* argv[]) {
                 //printf("_stringToDisplay = ~%s~\n", _stringToDisplay);              
                 
                 displayOnTubes(_stringToDisplay);
-                delay (CATHODE_PROTECTION_DELAY);
+                delay (cathodeProtectionLingerTime);
             }
         }
         
+		// Update tubes (only) if time has changed since last update and toggle columns blink
         if (strcmp(_lastStringDisplayed, _stringToDisplay) != 0) {
-            printf("_stringToDisplay = ~%s~\n", _stringToDisplay);
+            //printf("_stringToDisplay = ~%s~\n", _stringToDisplay);
             dotBlink();
             displayOnTubes(_stringToDisplay);        
-            delay (TOTAL_DELAY);
         }
+		delay (TOTAL_DELAY);
 	}
 	while (true);
 	return 0;
 }
 
-
-
-//uint64_t* reverseBit(uint64_t num)
 uint64_t reverseBit(uint64_t num)
 {
 	uint64_t reverse_num=0;
