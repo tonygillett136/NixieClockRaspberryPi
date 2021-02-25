@@ -45,8 +45,8 @@ bool HV5222;
 #define GREEN_LIGHT_PIN 27
 #define BLUE_LIGHT_PIN 29
 #define MAX_POWER 100
-#define INIT_CYCLE_FREQ 1
-#define INIT_CYCLE_BUMP 5
+#define INIT_CYCLE_FREQ 400
+#define INIT_CYCLE_BUMP 50
 
 #define UPPER_DOTS_MASK 0x80000000
 #define LOWER_DOTS_MASK 0x40000000
@@ -72,7 +72,7 @@ int blueLight = 0;
 int lightCycle = 0;
 bool dotState = 0;
 int rotator = 0;
-int cycleFreq = INIT_CYCLE_FREQ;
+unsigned long fireworksCyclePeriod = INIT_CYCLE_FREQ;
 char _lastStringDisplayed[8];
 
 // Set initial fireworks mode true=on; false=off
@@ -86,7 +86,6 @@ bool useSystemRTC = true;
 // Set use12hour = true for hours 0-12 and 1-11 (e.g. a.m./p.m. implied)
 // Set use12hour = false for hours 0-23
 bool use12hour = true;
-
 bool isStartup = true;
 
 int bcdToDec(int val) {
@@ -201,15 +200,12 @@ void funcMode(void) {
 void funcUp(void) {
 	static unsigned long buttonTime = 0;
 	if ((millis() - buttonTime) > DEBOUNCE_DELAY) {
-        // UP button speeds up Fireworks
-		cycleFreq = ((cycleFreq + INIT_CYCLE_BUMP) / INIT_CYCLE_BUMP ) * INIT_CYCLE_BUMP;
-		if (cycleFreq >= MAX_POWER / 2 )
-		{
-			cycleFreq = MAX_POWER / 2;
-			printf("Up button was pressed. Already at fastest speed, %d; ignoring.\n", cycleFreq);
+        // Up button speeds up Fireworks
+		fireworksCyclePeriod = (fireworksCyclePeriod - INIT_CYCLE_BUMP);
+		if (fireworksCyclePeriod < 0) {
+			fireworksCyclePeriod = 0;
 		}
-		else
-			printf("UP button was pressed. Frequency=%d\n", cycleFreq);
+		printf("Up button was pressed. Frequency=%lu\n", fireworksCyclePeriod);
 		buttonTime = millis();
 	}
 }
@@ -218,18 +214,11 @@ void funcDown(void) {
 	static unsigned long buttonTime = 0;
 	if ((millis() - buttonTime) > DEBOUNCE_DELAY) {
         // Down button slows down Fireworks
-		cycleFreq = ((cycleFreq - INIT_CYCLE_BUMP) / INIT_CYCLE_BUMP ) * INIT_CYCLE_BUMP;
-		if (cycleFreq <= 1 )
-		{
-			cycleFreq = 1;
-			printf("Down button was pressed. Already at slowest speed, %d; ignoring.\n", cycleFreq);
-		}
-		else
-			printf("Down button was pressed. Frequency=%d\n", cycleFreq);
+		fireworksCyclePeriod = (fireworksCyclePeriod - INIT_CYCLE_BUMP);
+		printf("Down button was pressed. Frequency=%lu\n", fireworksCyclePeriod);
 	}
 	buttonTime = millis();
 }
-
 
 uint32_t get32Rep(char * _stringToDisplay, int start) {
 	uint32_t var32 = 0;
@@ -249,19 +238,11 @@ void fillBuffer(uint32_t var32, unsigned char * buffer, int start) {
 
 void dotBlink()
 {
-	/*
-    static unsigned int lastTimeBlink=millis();
-
-	if ((millis() - lastTimeBlink) >= 1000)
-	{
-		lastTimeBlink=millis();
-		dotState = !dotState;
-	}
-    */
     dotState = !dotState;
 }
 
 void rotateFireWorks() {
+    //printf("Rotating fireworks\n");
 	int fireworks[] = {0,0,1,
 					  -1,0,0,
 			           0,1,0,
@@ -269,19 +250,23 @@ void rotateFireWorks() {
 					   1,0,0,
 					   0,-1,0
 	};
+    
 	redLight += fireworks[rotator * 3];
 	greenLight += fireworks[rotator * 3 + 1];
 	blueLight += fireworks[rotator * 3 + 2];
+    
 	softPwmWrite(RED_LIGHT_PIN, redLight);
 	softPwmWrite(GREEN_LIGHT_PIN, greenLight);
 	softPwmWrite(BLUE_LIGHT_PIN, blueLight);
-	lightCycle = lightCycle + cycleFreq;
-	if (lightCycle >= MAX_POWER) {
+    
+	lightCycle += 1;
+	if (lightCycle == MAX_POWER) {
 		rotator = rotator + 1;
 		lightCycle  = 0;
 	}
-	if (rotator > 5)
-	rotator = 0;
+	if (rotator > 5) {
+        rotator = 0;
+    }
 }
 
 
@@ -310,7 +295,6 @@ void signal_handler (int sig_received)
 	exit(sig_received);
 }
 
-//uint64_t* reverseBit(uint64_t num);
 uint64_t reverseBit(uint64_t num);
 
 void displayOnTubes(char* _stringToDisplayOnTubes)
@@ -451,6 +435,7 @@ int main(int argc, char* argv[]) {
 
     // Loop forever displaying the time
 	long buttonDelay = millis();
+    unsigned long lastRotateFireworks = millis();
 
 	do {
 		char _stringToDisplay[8];
@@ -486,7 +471,10 @@ int main(int argc, char* argv[]) {
 				initFireWorks();
 				buttonDelay = millis();
 			}
-			rotateFireWorks();
+            if (millis() > (lastRotateFireworks + fireworksCyclePeriod)) {
+                rotateFireWorks();
+                lastRotateFireworks = millis();
+            }
 		}
 
 		pinMode(LEpin, OUTPUT);
