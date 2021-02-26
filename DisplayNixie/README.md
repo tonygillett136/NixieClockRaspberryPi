@@ -1,5 +1,5 @@
 # NixieClockRaspberryPi
-## With mods by Leon Shaner
+## With mods by Leon Shaner and Tony Gillett
 
 Simple Nixie Tubes Clock Based on RaspberryPi, adapter and NCS314 shield for Arduino (by GRA and AFCH)
 A simple program that show the current system time at the Nixie tubes.
@@ -15,6 +15,13 @@ NOTE: Works with NCS314 v2.x or NCS312; has not been tested with newer models (a
   5) Command-line parsing to choose preferred options without recompile.
   6) Re-wrote makefile for proper handling of binary rebuild any time the sources are modified.
 
+### Major features of the Gillett mods:
+
+  1) Added "cathode poisoning" protection i.e. periodically exercise all digits. 
+  2) Column dots blink synchronised with seconds, which provides a more pleasing effect.
+  3) Tubes are updated only when the content to display changes.
+  4) Fireworks algorithm adapted so that change to PWM duty cycle moves just one 1% at a time, with speed controlled by frequency of calling instead. This allows for slower motion, which users may find creates a more pleasing effect.
+
 ### Required hardware:
   1) Raspberry Pi any models with 40-pin GPIO connector (Except A and B models).
   2) Arduino to Raspberry Pi adapter (by GRA & AFCH): https://gra-afch.com/catalog/shield-nixie-clock-for-arduino/raspberry-pi-shield-nixie-tubes-clock-ncs314-for-in-14-nixie-tubes-options-tubes-gps-remote-arduino-columns-copy/
@@ -26,7 +33,6 @@ NOTE: Works with NCS314 v2.x or NCS312; has not been tested with newer models (a
   1) Download and unzip.
   2) Enable SPI module in the "Raspberry Pi Configuration": https://photos.app.goo.gl/vH7DtG9nwMzJHwvP2
   2.1) or CLI way "sudo raspi-config": https://photos.app.goo.gl/wfoPd8CNLSlJ0bF83
-
   3) cd into .../DisplayNixie/src
   4) Run 'make'
   5) Binary will be placed at .../DisplayNixie/bin/DisplayNixie, a la:
@@ -37,6 +43,7 @@ NOTE: Works with NCS314 v2.x or NCS312; has not been tested with newer models (a
 * DisplayNixie nosysclock -- use Nixie clock (e.g. not NTP assisted).
 * DisplayNixie 24hour     -- use 24-hour mode.
 * DisplayNixie fireworks  -- enable fireworks.
+* DisplayNixie noprotect  -- disable cathode protection.
 
 NOTE:  Any combination/order of above arguments is allowed.
 
