@@ -115,20 +115,20 @@ tm addMinuteToDate(tm date) {
 tm getRTCDate() {
 	wiringPiI2CWrite(fileDesc, I2CFlush);
 	tm date;
-	date.tm_sec =  bcdToDec(wiringPiI2CReadReg8(fileDesc,SECOND_REGISTER));
-	date.tm_min =  bcdToDec(wiringPiI2CReadReg8(fileDesc,MINUTE_REGISTER));
+	date.tm_sec =  bcdToDec(wiringPiI2CReadReg8(fileDesc, SECOND_REGISTER));
+	date.tm_min =  bcdToDec(wiringPiI2CReadReg8(fileDesc, MINUTE_REGISTER));
 	if (use12hour)
 	{
-		date.tm_hour = bcdToDec(wiringPiI2CReadReg8(fileDesc,HOUR_REGISTER));
+		date.tm_hour = bcdToDec(wiringPiI2CReadReg8(fileDesc, HOUR_REGISTER));
 		if (date.tm_hour > 12)
 			date.tm_hour -= 12;
 	}
 	else
-		date.tm_hour = bcdToDec(wiringPiI2CReadReg8(fileDesc,HOUR_REGISTER));
-	date.tm_wday = bcdToDec(wiringPiI2CReadReg8(fileDesc,WEEK_REGISTER));
-	date.tm_mday = bcdToDec(wiringPiI2CReadReg8(fileDesc,DAY_REGISTER));
-	date.tm_mon =  bcdToDec(wiringPiI2CReadReg8(fileDesc,MONTH_REGISTER));
-	date.tm_year = bcdToDec(wiringPiI2CReadReg8(fileDesc,YEAR_REGISTER));
+		date.tm_hour = bcdToDec(wiringPiI2CReadReg8(fileDesc, HOUR_REGISTER));
+	date.tm_wday = bcdToDec(wiringPiI2CReadReg8(fileDesc, WEEK_REGISTER));
+	date.tm_mday = bcdToDec(wiringPiI2CReadReg8(fileDesc, DAY_REGISTER));
+	date.tm_mon =  bcdToDec(wiringPiI2CReadReg8(fileDesc, MONTH_REGISTER));
+	date.tm_year = bcdToDec(wiringPiI2CReadReg8(fileDesc, YEAR_REGISTER));
 	date.tm_isdst = 0;
 	return date;
 }
@@ -227,16 +227,16 @@ void funcDown(void) {
 uint32_t get32Rep(char * _stringToDisplay, int start) {
 	uint32_t var32 = 0;
 
-	var32= (SymbolArray[_stringToDisplay[start]-0x30])<<20;
-	var32|=(SymbolArray[_stringToDisplay[start - 1]-0x30])<<10;
-	var32|=(SymbolArray[_stringToDisplay[start - 2]-0x30]);
+	var32= (SymbolArray[_stringToDisplay[start] - 0x30]) << 20;
+	var32|=(SymbolArray[_stringToDisplay[start - 1] - 0x30]) << 10;
+	var32|=(SymbolArray[_stringToDisplay[start - 2] - 0x30]);
 	return var32;
 }
 
 void fillBuffer(uint32_t var32, unsigned char * buffer, int start) {
-	buffer[start] = var32>>24;
-	buffer[start + 1] = var32>>16;
-	buffer[start + 2] = var32>>8;
+	buffer[start] = var32 >> 24;
+	buffer[start + 1] = var32 >> 16;
+	buffer[start + 2] = var32 >> 8;
 	buffer[start + 3] = var32;
 }
 
@@ -318,14 +318,14 @@ void displayOnTubes(char* _stringToDisplayOnTubes)
     {
         uint64_t reverseBuffValue;
         reverseBuffValue = reverseBit(*(uint64_t*)buff);
-        buff[4]=reverseBuffValue;
-        buff[5]=reverseBuffValue>>8;
-        buff[6]=reverseBuffValue>>16;
-        buff[7]=reverseBuffValue>>24;
-        buff[0]=reverseBuffValue>>32;
-        buff[1]=reverseBuffValue>>40;
-        buff[2]=reverseBuffValue>>48;
-        buff[3]=reverseBuffValue>>56;
+        buff[4] = reverseBuffValue;
+        buff[5] = reverseBuffValue >> 8;
+        buff[6] = reverseBuffValue >> 16;
+        buff[7] = reverseBuffValue >> 24;
+        buff[0] = reverseBuffValue >> 32;
+        buff[1] = reverseBuffValue >> 40;
+        buff[2] = reverseBuffValue >> 48;
+        buff[3] = reverseBuffValue >> 56;
     }
 
     wiringPiSPIDataRW(0, buff, 8);
@@ -357,13 +357,13 @@ int main(int argc, char* argv[]) {
 		int curr_arg = 1;
 		while (curr_arg < argc)
 		{
-			if (!strcmp(argv[curr_arg],"nosysclock"))
+			if (!strcmp(argv[curr_arg], "nosysclock"))
 				useSystemRTC = false;
-			else if (!strcmp(argv[curr_arg],"24hour"))
+			else if (!strcmp(argv[curr_arg], "24hour"))
 				use12hour = false;
-			else if (!strcmp(argv[curr_arg],"fireworks"))
+			else if (!strcmp(argv[curr_arg], "fireworks"))
 				doFireworks = true;
-            else if (!strcmp(argv[curr_arg],"noprotect"))
+            else if (!strcmp(argv[curr_arg], "noprotect"))
                 cathodeProtection = false;
 			else
 			{
@@ -397,13 +397,19 @@ int main(int argc, char* argv[]) {
 		puts("Fireworks ENABLED at start.");
 	else
 		puts("Fireworks DISABLED at start.");
+        
+    // Tell the user the cathode protection mode
+	if (cathodeProtection)
+		puts("Cathode poisoning protection ENABLED at start.");
+	else
+		puts("Cathode poisoning protection DISABLED at start.");
 
     // Further setup...
 	initPin(UP_BUTTON_PIN);
 	initPin(DOWN_BUTTON_PIN);
 	initPin(MODE_BUTTON_PIN);
 
-    // Initial setup for multi-color LED's based on default doFirewworks boolean
+    // Initial setup for multi-color LED's based on default doFireworks boolean
 	if (doFireworks) {
 		softPwmCreate(RED_LIGHT_PIN, 100, MAX_POWER);
     }
@@ -491,13 +497,13 @@ int main(int argc, char* argv[]) {
           ) 
         {
             // Run cathode poisoning protection 
-			printf("Do cathode poisoning protection\n");
+			//printf("Do cathode poisoning protection\n");
 			
             isStartup = false;
 			int cathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_SHORT;
 			// Run extended version of cathode protection twice daily
 			if ((strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_1) == 0) || (strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_2) == 0)) {
-				printf("Do cathode poisoning protection (long version)\n");
+				//printf("Do cathode poisoning protection (long version)\n");
 				cathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_LONG;
 			}			
             
@@ -536,12 +542,12 @@ int main(int argc, char* argv[]) {
 
 uint64_t reverseBit(uint64_t num)
 {
-	uint64_t reverse_num=0;
+	uint64_t reverse_num = 0;
 	int i;
-	for (i=0; i<64; i++)
+	for (i=0; i < 64; i++)
 	{
-		if ((num & ((uint64_t)1<<i)))
-			reverse_num = reverse_num | ((uint64_t)1<<(63-i));
+		if ((num & ((uint64_t)1 << i)))
+			reverse_num = reverse_num | ((uint64_t)1 << (63 - i));
 	}
 	return reverse_num;
 }
