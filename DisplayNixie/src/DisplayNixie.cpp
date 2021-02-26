@@ -1,12 +1,12 @@
 //============================================================================
 // Name        : DisplayNixie.cpp
-// Author      : GRA&AFCH @ Leon Shaner
-// Version     : v2.3.1
+// Author      : GRA&AFCH @ Leon Shaner; Tony Gillett
+// Version     : v2.3.2
 // Copyright   : Free
 // Description : Display time on shields NCS314 v2.x or NCS312
 //============================================================================
 
-#define _VERSION "2.3.1 SHANER"
+#define _VERSION "2.3.2 SHANER GILLETT"
 
 #include <iostream>
 #include <wiringPi.h>
@@ -66,7 +66,7 @@ bool HV5222;
 #define DISPLAY_POS_S1 4
 #define DISPLAY_POS_S2 5
 
-uint16_t SymbolArray[10]={1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
+uint16_t SymbolArray[10] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 
 int fileDesc;
 int redLight = 100;
@@ -272,7 +272,6 @@ void rotateFireWorks() {
         rotator = 0;
     }
 }
-
 
 uint32_t addBlinkTo32Rep(uint32_t var) {
 	if (dotState)
