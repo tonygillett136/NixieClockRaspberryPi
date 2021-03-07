@@ -1,10 +1,10 @@
 
 [Unit]
-Description=nixie clock
+Description=Nixie Clock
 After=network.target
 
 [Service]
-ExecStart=/nixie/NixieClockRaspberryPi-shaner/DisplayNixie/bin/DisplayNixie
+ExecStart=/home/pi/NixieClockRaspberryPi/DisplayNixie/bin/DisplayNixie 24hour fireworks
 WorkingDirectory=/tmp
 StandardOutput=inherit
 StandardError=inherit
