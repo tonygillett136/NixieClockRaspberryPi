@@ -8,6 +8,9 @@
 
 #define _VERSION "2.3.2 SHANER GILLETT"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <getopt.h>
 #include <iostream>
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
@@ -47,6 +50,7 @@ bool HV5222;
 #define RED_LIGHT_PIN 28
 #define GREEN_LIGHT_PIN 27
 #define BLUE_LIGHT_PIN 29
+#define MAX_POWER_EXTENT 100
 #define MAX_POWER 100
 #define INIT_CYCLE_FREQ 400
 #define INIT_CYCLE_BUMP 50
@@ -69,14 +73,22 @@ bool HV5222;
 uint16_t SymbolArray[10] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 
 int fileDesc;
-int redLight = 100;
+
+int redLight = 0;
 int greenLight = 0;
 int blueLight = 0;
 int lightCycle = 0;
 bool dotState = 0;
 int rotator = 0;
+int maxLEDBrightness = MAX_POWER;
 unsigned long fireworksCyclePeriod = INIT_CYCLE_FREQ;
 char _lastStringDisplayed[8];
+
+string cathodeProtectionLongTime[2] = {CATHODE_PROTECTION_LONG_TIME_1, CATHODE_PROTECTION_LONG_TIME_2};
+string turnClockOnTime;
+string turnClockOffTime;
+
+bool clockIsSwitchedOn = true;
 
 // Set initial fireworks mode true=on; false=off
 bool doFireworks = false;
@@ -90,7 +102,7 @@ bool useSystemRTC = true;
 // Set use12hour = false for hours 0-23
 bool use12hour = true;
 bool isStartup = true;
-bool cathodeProtection = true;
+bool doCathodeProtection = true;
 
 int bcdToDec(int val) {
 	return ((val / 16  * 10) + (val % 16));
@@ -179,7 +191,7 @@ void resetFireWorks() {
 }
 
 void initFireWorks() {
-	redLight = 5;
+	redLight = maxLEDBrightness;
 	greenLight = 0;
 	blueLight = 0; 
 	softPwmWrite(RED_LIGHT_PIN, redLight);
@@ -259,12 +271,18 @@ void rotateFireWorks() {
 	greenLight += fireworks[rotator * 3 + 1];
 	blueLight += fireworks[rotator * 3 + 2];
     
+    /*
+    printf("redLight = %d\n", redLight);
+    printf("greenLight = %d\n", greenLight);
+    printf("blueLight = %d\n", blueLight);
+    */
+    
 	softPwmWrite(RED_LIGHT_PIN, redLight);
 	softPwmWrite(GREEN_LIGHT_PIN, greenLight);
 	softPwmWrite(BLUE_LIGHT_PIN, blueLight);
     
 	lightCycle += 1;
-	if (lightCycle == MAX_POWER) {
+	if (lightCycle == maxLEDBrightness) {
 		rotator = rotator + 1;
 		lightCycle  = 0;
 	}
@@ -287,14 +305,26 @@ uint32_t addBlinkTo32Rep(uint32_t var) {
 	return var;
 }
 
+void switchOnClock()
+{
+    //if (doFireworks) {
+    //    initFireWorks();
+    //}
+    clockIsSwitchedOn = true;
+}
+
+void switchOffClock()
+{
+	resetFireWorks();
+    digitalWrite(LEpin, LOW);
+    clockIsSwitchedOn = false;
+}
+
 // Interrupt handler to turn off Nixie upon SIGINT(2), SIGQUIT(3), SIGTERM(15), but not SIGKILL(9)
 void signal_handler (int sig_received)
 {
 	printf("Received Signal %d; Exiting.\n", sig_received);
-	digitalWrite(RED_LIGHT_PIN, LOW);
-	digitalWrite(GREEN_LIGHT_PIN, LOW);
-	digitalWrite(BLUE_LIGHT_PIN, LOW);
-	digitalWrite(LEpin, LOW);
+	switchOffClock();
 	exit(sig_received);
 }
 
@@ -334,7 +364,156 @@ void displayOnTubes(char* _stringToDisplayOnTubes)
 }
 
 
+/* Flag set by ‘--verbose’. */
+static int use12hourFlag;
+
 int main(int argc, char* argv[]) {
+
+    //int c;
+    
+    while (1)
+    {
+        static struct option long_options[] =
+        {
+            /* These options set a flag. */
+            {"12hour",            no_argument,       &use12hourFlag, 1},
+            {"24hour",            no_argument,       &use12hourFlag, 0},
+            /* These options don’t set a flag.
+               We distinguish them by their indices. */
+            {"no-sysclock",       no_argument,       0, 'c'},
+            {"fireworks",         required_argument, 0, 'f'},
+            {"no-protect",        no_argument,       0, 'n'},
+            {"extended-protect1", required_argument, 0, 'p'},
+            {"extended-protect2", required_argument, 0, 'q'},
+            {"turn-on-at",        required_argument, 0, 'o'},
+            {"turn-off-at",       required_argument, 0, 's'},
+            {"brightness",        required_argument, 0, 'b'},
+            //{"file",       required_argument, 0, 'f'},
+            {0, 0, 0, 0}
+            
+            /*
+            to add:
+            xx nosysclock
+            xx fireworks
+            xx noprotect
+            extended protect times 1 and 2
+            sleep time range
+            */
+            
+        };
+        
+        /* getopt_long stores the option index here. */
+        int option_index = 0;
+
+        //c = getopt_long (argc, argv, "abc:d:f:q:o:s:", long_options, &option_index);
+        int c = getopt_long (argc, argv, "cf:np:q:o:s:b:", long_options, &option_index);
+
+        /* Detect the end of the options. */
+        if (c == -1) {
+            break;
+        }
+
+        // Basic command line args handling. Note that code is not robust - no checks on the format/validity of user inputs.
+        switch (c)
+        {
+            case 0:
+                /* If this option set a flag, do nothing else now. */
+                if (long_options[option_index].flag != 0)
+                  break;
+                printf ("option %s", long_options[option_index].name);
+                if (optarg)
+                    printf (" with arg %s", optarg);
+                printf ("\n");
+                break;
+                
+            case 'c':
+                // Don't use system clock
+                //puts ("option -c\n");
+                useSystemRTC = false;
+                break;
+
+            case 'f':
+                // do fireworks
+                //puts ("option -b\n");
+                fireworksCyclePeriod = atoi(optarg);
+                doFireworks = (fireworksCyclePeriod != 0);
+                break;
+                
+           case 'n':
+                // disable cathode protection
+                //puts ("option -b\n");
+                doCathodeProtection = false;
+                break;
+                
+            case 'p':
+                printf ("option -p with value `%s'\n", optarg);
+                cathodeProtectionLongTime[0] = optarg;
+                break;
+                
+            case 'q':
+                printf ("option -q with value `%s'\n", optarg);
+                cathodeProtectionLongTime[1] = optarg;
+                break;
+                
+            case 'o':
+                printf ("option -o with value `%s'\n", optarg);
+                turnClockOnTime = optarg;
+                break;
+                
+            case 's':
+                printf ("option -s with value `%s'\n", optarg);
+                turnClockOffTime = optarg;
+                break;
+                
+            case 'b':
+                printf ("option -b with value `%s'\n", optarg);
+                maxLEDBrightness = atoi(optarg);
+                break;
+
+/*
+            case 'c':
+                printf ("option -c with value `%s'\n", optarg);
+                break;
+
+            case 'd':
+                printf ("option -d with value `%s'\n", optarg);
+                break;
+
+            case 'f':
+                printf ("option -f with value `%s'\n", optarg);
+                break;
+
+            case '?':
+                /* getopt_long already printed an error message. */
+  //              break;
+
+            default:
+                printf("aborting");
+                abort ();
+            }
+    }
+    
+    use12hour = use12hourFlag;
+    
+    // test
+    printf("cathodeProtectionLongTime1 %s\n", cathodeProtectionLongTime[0].c_str());
+    printf("cathodeProtectionLongTime2 %s\n", cathodeProtectionLongTime[1].c_str());
+    printf("turnClockOnTime %s\n", turnClockOnTime.c_str());
+    printf("turnClockOffTime %s\n", turnClockOffTime.c_str());
+
+    /* Print any remaining command line arguments (not options). */
+    if (optind < argc)
+    {
+        printf ("non-option ARGV-elements: ");
+        while (optind < argc)
+          printf ("%s ", argv[optind++]);
+        putchar ('\n');
+    }
+    
+    
+    //printf("just exiting.\n");
+    //exit(EXIT_SUCCESS);
+    // test stuff end
 
 	// Setup signal handlers
   	signal(SIGINT, signal_handler);
@@ -348,10 +527,11 @@ int main(int argc, char* argv[]) {
 	//softToneCreate (BUZZER_PIN);
 	//softToneWrite(BUZZER_PIN, 1000);
 
-	softPwmCreate(GREEN_LIGHT_PIN, 0, MAX_POWER);
-	softPwmCreate(BLUE_LIGHT_PIN, 0, MAX_POWER);
+
+    
 
     // Crude command-line argument handling
+    /*
 	if (argc >= 2)
 	{
 		int curr_arg = 1;
@@ -364,7 +544,7 @@ int main(int argc, char* argv[]) {
 			else if (!strcmp(argv[curr_arg], "fireworks"))
 				doFireworks = true;
             else if (!strcmp(argv[curr_arg], "noprotect"))
-                cathodeProtection = false;
+                doCathodeProtection = false;
 			else
 			{
 				printf("ERROR: %s Unknown argument, \"%s\" on command line.\n\n", argv[0], argv[1]);
@@ -379,6 +559,7 @@ int main(int argc, char* argv[]) {
 			curr_arg += 1;
 		}
 	}
+    */
 
     // Tell the user the RTC mode
 	if (useSystemRTC)
@@ -399,10 +580,16 @@ int main(int argc, char* argv[]) {
 		puts("Fireworks DISABLED at start.");
         
     // Tell the user the cathode protection mode
-	if (cathodeProtection)
+	if (doCathodeProtection)
 		puts("Cathode poisoning protection ENABLED at start.");
 	else
 		puts("Cathode poisoning protection DISABLED at start.");
+
+    // start test    
+    // printf("just exiting.\n");
+    // exit(EXIT_SUCCESS);
+    // end test
+
 
     // Further setup...
 	initPin(UP_BUTTON_PIN);
@@ -410,12 +597,15 @@ int main(int argc, char* argv[]) {
 	initPin(MODE_BUTTON_PIN);
 
     // Initial setup for multi-color LED's based on default doFireworks boolean
+    softPwmCreate(GREEN_LIGHT_PIN, 0, MAX_POWER_EXTENT);
+    softPwmCreate(BLUE_LIGHT_PIN, 0, MAX_POWER_EXTENT);
 	if (doFireworks) {
-		softPwmCreate(RED_LIGHT_PIN, 100, MAX_POWER);
+		redLight = maxLEDBrightness;
+        softPwmCreate(RED_LIGHT_PIN, redLight, MAX_POWER_EXTENT);
     }
     else
 	{
-		softPwmCreate(RED_LIGHT_PIN, 0, MAX_POWER);
+		softPwmCreate(RED_LIGHT_PIN, 0, MAX_POWER_EXTENT);
 		resetFireWorks();
 	}
 
@@ -448,7 +638,7 @@ int main(int argc, char* argv[]) {
 	long buttonDelay = millis();
     unsigned long lastRotateFireworks = millis();
 
-	do {
+	do {      
 		char _stringToDisplay[8];
 
         // NOTE:  RTC relies on system to keep time (e.g. NTP assisted for accuracy).
@@ -469,7 +659,25 @@ int main(int argc, char* argv[]) {
 		char* format = (char*) "%H%M%S";
 		strftime(_stringToDisplay, 8, format, &date);
         
-        if (doFireworks)
+        //printf("Time to display %s\n", _stringToDisplay);
+        if (clockIsSwitchedOn) {
+            //printf("Time to display %s, switch off time %s\n", _stringToDisplay, turnClockOffTime.c_str());
+            if (strcmp(_stringToDisplay, turnClockOffTime.c_str()) == 0) {
+                printf("Turning off clock at %s\n", _stringToDisplay);
+                switchOffClock();
+                //continue;
+                //printf("this shouldn't be printed!!!\n");
+            }
+        } else {
+                if (strcmp(_stringToDisplay, turnClockOnTime.c_str()) == 0) {
+                    printf("Clock switching on at %s\n", _stringToDisplay);
+                    switchOnClock();
+                }
+                //continue;
+        }
+        
+        //printf("Time to display %s\n", _stringToDisplay);
+        if (doFireworks && clockIsSwitchedOn)
 		{
 			// Handle Fireworks speed UP / Down
 			if (digitalRead(UP_BUTTON_PIN) == 0 && (millis() - buttonDelay) > DEBOUNCE_DELAY) {
@@ -488,23 +696,26 @@ int main(int argc, char* argv[]) {
             }
 		}
 
-		pinMode(LEpin, OUTPUT);
+		pinMode(LEpin, OUTPUT); // todo: move this to outside of loop, so run one-time only???
 		
         // On startup and every ten minutes, invoke short cathode poisoning protection 
+        bool isTimeForLongProtection = (strcmp(_stringToDisplay, cathodeProtectionLongTime[0].c_str()) == 0) || (strcmp(_stringToDisplay, cathodeProtectionLongTime[1].c_str()) == 0);
+        bool isTimeForShortProtection = ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO));
+        
         if ( 
-          cathodeProtection && 
-          (isStartup || ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO)))
+          doCathodeProtection && (isStartup || isTimeForShortProtection || isTimeForLongProtection )
           ) 
         {
             // Run cathode poisoning protection 
 			//printf("Do cathode poisoning protection\n");
 			
             isStartup = false;
-			int cathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_SHORT;
+			int doCathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_SHORT;
 			// Run extended version of cathode protection twice daily
-			if ((strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_1) == 0) || (strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_2) == 0)) {
+			//if ((strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_1) == 0) || (strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_2) == 0)) {
+            if (isTimeForLongProtection) {
 				//printf("Do cathode poisoning protection (long version)\n");
-				cathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_LONG;
+				doCathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_LONG;
 			}			
             
             int characterToDisplay = ASCII_ZERO;
@@ -524,17 +735,23 @@ int main(int argc, char* argv[]) {
                 //printf("_stringToDisplay = ~%s~\n", _stringToDisplay);              
                 
                 displayOnTubes(_stringToDisplay);
-                delay (cathodeProtectionLingerTime);
+                delay (doCathodeProtectionLingerTime);
+            }
+            
+            if (!clockIsSwitchedOn) {
+                switchOffClock();
             }
         }
         
-		// Update tubes (only) if time has changed since last update and toggle columns blink
-        if (strcmp(_lastStringDisplayed, _stringToDisplay) != 0) {
+        
+		// Update tubes (only) if time has changed since last update and toggle columns blink (and only if clock is switched on)
+        if (clockIsSwitchedOn && (strcmp(_lastStringDisplayed, _stringToDisplay) != 0)) {
             //printf("_stringToDisplay = ~%s~\n", _stringToDisplay);
             dotBlink();
             displayOnTubes(_stringToDisplay);        
         }
-		delay (TOTAL_DELAY);
+        
+        delay (TOTAL_DELAY);
 	}
 	while (true);
 	return 0;
