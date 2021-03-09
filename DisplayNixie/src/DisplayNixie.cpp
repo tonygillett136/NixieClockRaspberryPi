@@ -182,6 +182,7 @@ void initPin(int pin) {
 }
 
 void resetFireWorks() {
+    printf("in resetFireWorks\n");
 	redLight = 0;
 	greenLight = 0;
 	blueLight = 0; 
@@ -191,6 +192,7 @@ void resetFireWorks() {
 }
 
 void initFireWorks() {
+    printf("in initFireWorks\n");
 	redLight = maxLEDBrightness;
 	greenLight = 0;
 	blueLight = 0; 
@@ -307,14 +309,15 @@ uint32_t addBlinkTo32Rep(uint32_t var) {
 
 void switchOnClock()
 {
-    //if (doFireworks) {
-    //    initFireWorks();
-    //}
+    if (doFireworks) {
+        initFireWorks();
+    }
     clockIsSwitchedOn = true;
 }
 
 void switchOffClock()
 {
+    //doFireworks = false;
 	resetFireWorks();
     digitalWrite(LEpin, LOW);
     clockIsSwitchedOn = false;
@@ -599,13 +602,12 @@ int main(int argc, char* argv[]) {
     // Initial setup for multi-color LED's based on default doFireworks boolean
     softPwmCreate(GREEN_LIGHT_PIN, 0, MAX_POWER_EXTENT);
     softPwmCreate(BLUE_LIGHT_PIN, 0, MAX_POWER_EXTENT);
+    softPwmCreate(RED_LIGHT_PIN, 0, MAX_POWER_EXTENT);
 	if (doFireworks) {
-		redLight = maxLEDBrightness;
-        softPwmCreate(RED_LIGHT_PIN, redLight, MAX_POWER_EXTENT);
+		initFireWorks();
     }
     else
 	{
-		softPwmCreate(RED_LIGHT_PIN, 0, MAX_POWER_EXTENT);
 		resetFireWorks();
 	}
 
@@ -714,7 +716,7 @@ int main(int argc, char* argv[]) {
 			// Run extended version of cathode protection twice daily
 			//if ((strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_1) == 0) || (strcmp(_stringToDisplay, CATHODE_PROTECTION_LONG_TIME_2) == 0)) {
             if (isTimeForLongProtection) {
-				//printf("Do cathode poisoning protection (long version)\n");
+				printf("Do cathode poisoning protection (long version)\n");
 				doCathodeProtectionLingerTime = CATHODE_PROTECTION_DELAY_LONG;
 			}			
             
@@ -754,6 +756,8 @@ int main(int argc, char* argv[]) {
         delay (TOTAL_DELAY);
 	}
 	while (true);
+    
+    printf("end of Main/n");
 	return 0;
 }
 
