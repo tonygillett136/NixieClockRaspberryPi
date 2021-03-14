@@ -70,6 +70,8 @@ bool HV5222;
 #define DISPLAY_POS_S1 4
 #define DISPLAY_POS_S2 5
 
+#define TIME_STR_LENGTH 6
+
 uint16_t SymbolArray[10] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 
 int fileDesc;
@@ -83,6 +85,7 @@ int rotator = 0;
 int maxLEDBrightness = MAX_POWER;
 unsigned long fireworksCyclePeriod = INIT_CYCLE_FREQ;
 char _lastStringDisplayed[8];
+bool continueRunningClock = true;
 
 string cathodeProtectionLongTime[2] = {CATHODE_PROTECTION_LONG_TIME_1, CATHODE_PROTECTION_LONG_TIME_2};
 string turnClockOnTime;
@@ -178,7 +181,6 @@ void writeRTCDate(tm date) {
 void initPin(int pin) {
 	pinMode(pin, INPUT);
 	pullUpDnControl(pin, PUD_UP);
-
 }
 
 void resetFireWorks() {
@@ -260,6 +262,8 @@ void dotBlink()
 }
 
 void rotateFireWorks() {
+    printf("in rotateFireWorks\n");
+    
 	int fireworks[] = {0,0,1,
 					  -1,0,0,
 			           0,1,0,
@@ -310,17 +314,17 @@ void switchOnClock()
 
 void switchOffClock()
 {
-	resetFireWorks();
-    digitalWrite(LEpin, LOW);
     clockIsSwitchedOn = false;
+    digitalWrite(LEpin, LOW);
+    resetFireWorks();
 }
 
 // Interrupt handler to turn off Nixie upon SIGINT(2), SIGQUIT(3), SIGTERM(15), but not SIGKILL(9)
 void signal_handler (int sig_received)
 {
 	printf("Received Signal %d; Exiting.\n", sig_received);
-	switchOffClock();
-	exit(sig_received);
+	//exit(sig_received);
+    continueRunningClock = false;
 }
 
 uint64_t reverseBit(uint64_t num);
@@ -496,6 +500,28 @@ int main(int argc, char* argv[]) {
 		puts("Cathode poisoning protection ENABLED at start.");
 	else
 		puts("Cathode poisoning protection DISABLED at start.");
+        
+    printf("Maximum LED brightness set at %d\n", maxLEDBrightness);
+    
+    if (turnClockOffTime.length() == TIME_STR_LENGTH) {
+        printf("Clock switch off time set to %s\n", turnClockOffTime.c_str());
+    }
+
+    if (turnClockOnTime.length() == TIME_STR_LENGTH) {
+        printf("Clock switch on time set to %s\n", turnClockOnTime.c_str());
+    }
+
+    if (cathodeProtectionLongTime[0].length() == TIME_STR_LENGTH) {
+        printf("Long cathode protection will run at %s\n", cathodeProtectionLongTime[0].c_str());
+    }
+    
+    if (cathodeProtectionLongTime[1].length() == TIME_STR_LENGTH) {
+        printf("Long cathode protection will run at %s\n", cathodeProtectionLongTime[1].c_str());
+    }    
+
+    //printf("just exiting.\n");
+    //exit(EXIT_SUCCESS);
+    // test stuff end
 
     // TODO - tell use off/on times if set, cathode protection etc.
 
@@ -648,9 +674,11 @@ int main(int argc, char* argv[]) {
         
         delay (TOTAL_DELAY);
 	}
-	while (true);
+	while (continueRunningClock);
     
-    printf("end of Main/n");
+    switchOffClock();
+    
+    printf("end of Main\n");
 	return 0;
 }
 
