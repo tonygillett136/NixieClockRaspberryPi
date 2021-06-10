@@ -262,7 +262,7 @@ void dotBlink()
 }
 
 void rotateFireWorks() {
-    printf("in rotateFireWorks\n");
+    //printf("in rotateFireWorks\n");
     
 	int fireworks[] = {0,0,1,
 					  -1,0,0,
