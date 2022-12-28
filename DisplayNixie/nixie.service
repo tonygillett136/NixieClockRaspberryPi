@@ -4,7 +4,7 @@ Description=Nixie Clock
 After=network.target
 
 [Service]
-ExecStart=/home/pi/NixieClockRaspberryPi/DisplayNixie/bin/DisplayNixie 24hour fireworks
+ExecStart=/home/pi/NixieClockRaspberryPi/DisplayNixie/bin/DisplayNixie --24hour -f 2000 -p 020000 -q 053000 -s 230000 -o 063000 -b 20
 WorkingDirectory=/tmp
 StandardOutput=inherit
 StandardError=inherit
