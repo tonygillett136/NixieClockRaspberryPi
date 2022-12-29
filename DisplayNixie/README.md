@@ -21,6 +21,7 @@ NOTE: Works with NCS314 v2.x or NCS312; has not been tested with newer models (a
   2) Column dots blink synchronised with seconds, which provides a more pleasing effect.
   3) Tubes are updated only when the content to display changes.
   4) Fireworks algorithm adapted so that change to PWM duty cycle moves just one 1% at a time, with speed controlled by frequency of calling instead. This allows for slower motion, which users may find creates a more pleasing effect.
+  5) Added off/on switch.
 
 ### Required hardware:
   1) Raspberry Pi any models with 40-pin GPIO connector (Except A and B models).
@@ -38,12 +39,24 @@ NOTE: Works with NCS314 v2.x or NCS312; has not been tested with newer models (a
   5) Binary will be placed at .../DisplayNixie/bin/DisplayNixie, a la:
 	/nixie/NixieClockRaspberryPi-shaner/DisplayNixie/bin/DisplayNixie
 
-### Сommand line options (shaner mods):
-* USAGE: DisplayNixie     -- Use system clock in 12-hour mode.
-* DisplayNixie nosysclock -- use Nixie clock (e.g. not NTP assisted).
-* DisplayNixie 24hour     -- use 24-hour mode.
-* DisplayNixie fireworks  -- enable fireworks.
-* DisplayNixie noprotect  -- disable cathode protection.
+### Сommand line options (shaner and gillett mods):
+```
+USAGE: DisplayNixie [OPTION]...  
+  --12hour                   use 12 hour clock  
+  --24hour                   use 24 hour clock  
+  --no-sysclock              use Nixie clock (e.g. not NTP assisted)  
+  -f, --fireworks            enable fireworks and set speed  
+  -n, --no-protect           disable cathode poisoning protection  
+  -p, --extended-protect1    run extended cathode protection at time (HHMMSS)  
+  -q, --extended-protect2    run extended cathode protection at time (HHMMSS)  
+  -o, --turn-on-at           switch on clock at time (HHMMSS)  
+  -s, --turn-off-at          switch off clock at time (HHMMSS)  
+  -b, --brightness           set fireworks brightness   
+```
+Example:  
+```
+DisplayNixie --24hour -f 2000 -p 020000 -q 053000 -s 230000 -o 063000 -b 20  
+```
 
 NOTE:  Any combination/order of above arguments is allowed.
 
@@ -52,7 +65,6 @@ NOTE:  Any combination/order of above arguments is allowed.
 * MODE Button:  Toggle fireworks on/off
 * UP Button:    Speed up fireworks color-rotation
 * DOWN Button:  Slow down fireworks color-rotation
-
 
 ### Autorun the program at startup: 
 
