@@ -25,6 +25,8 @@
             color: var(--text);
             min-height: 100vh;
             padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         h1 {
@@ -64,13 +66,11 @@
 
         .status-dot {
             display: inline-block;
-            width: 8px;
-            height: 8px;
+            width: 8px; height: 8px;
             border-radius: 50%;
             margin-right: 4px;
             vertical-align: middle;
         }
-
         .status-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
         .status-dot.off { background: var(--red); }
 
@@ -98,9 +98,7 @@
             padding: 8px 0;
             border-bottom: 1px solid var(--border);
         }
-
         .control-row:last-child { border-bottom: none; }
-
         .control-label { font-size: 0.9em; flex-shrink: 0; }
 
         .control-value {
@@ -112,67 +110,65 @@
         }
 
         input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 140px;
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            outline: none;
+            -webkit-appearance: none; appearance: none;
+            width: 140px; height: 6px;
+            background: var(--border); border-radius: 3px; outline: none;
         }
-
         input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: var(--amber);
-            cursor: pointer;
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px;
+            border-radius: 50%; background: var(--amber); cursor: pointer;
         }
 
         input[type="time"] {
-            background: var(--bg);
-            color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 4px 8px;
-            font-size: 0.9em;
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 4px 8px; font-size: 0.9em;
         }
 
-        .toggle {
-            position: relative;
-            width: 48px;
-            height: 26px;
-            flex-shrink: 0;
-        }
-
+        .toggle { position: relative; width: 48px; height: 26px; flex-shrink: 0; }
         .toggle input { opacity: 0; width: 0; height: 0; }
-
         .toggle-slider {
-            position: absolute;
-            inset: 0;
-            background: var(--border);
-            border-radius: 13px;
-            cursor: pointer;
-            transition: background 0.3s;
+            position: absolute; inset: 0;
+            background: var(--border); border-radius: 13px;
+            cursor: pointer; transition: background 0.3s;
         }
-
         .toggle-slider::before {
-            content: '';
-            position: absolute;
-            height: 20px;
-            width: 20px;
-            left: 3px;
-            bottom: 3px;
-            background: var(--text);
-            border-radius: 50%;
-            transition: transform 0.3s;
+            content: ''; position: absolute;
+            height: 20px; width: 20px; left: 3px; bottom: 3px;
+            background: var(--text); border-radius: 50%; transition: transform 0.3s;
         }
-
         .toggle input:checked + .toggle-slider { background: var(--amber); }
         .toggle input:checked + .toggle-slider::before { transform: translateX(22px); }
 
+        /* LED mode grid */
+        .modes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 8px;
+        }
+
+        .mode-btn {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 4px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mode-btn:hover { border-color: #666; }
+        .mode-btn.selected {
+            border-color: var(--amber);
+            background: #2a2200;
+            box-shadow: 0 0 12px var(--amber-glow);
+        }
+        .mode-btn .icon { font-size: 1.3em; display: block; margin-bottom: 2px; }
+        .mode-btn .name { font-size: 0.7em; font-weight: 600; }
+
+        /* Tricks grid */
         .tricks-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -190,58 +186,42 @@
             transition: all 0.2s;
             -webkit-tap-highlight-color: transparent;
         }
-
         .trick-btn:hover, .trick-btn:active {
             border-color: var(--amber);
             background: #2a2200;
             box-shadow: 0 0 15px var(--amber-glow);
         }
-
         .trick-btn .icon { font-size: 1.5em; display: block; margin-bottom: 4px; }
         .trick-btn .name { font-size: 0.8em; font-weight: 600; }
         .trick-btn .desc { font-size: 0.65em; color: var(--text-dim); margin-top: 2px; }
 
         .power-btn {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            font-size: 1em;
-            font-weight: 600;
-            border: 2px solid;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            display: block; width: 100%; padding: 14px;
+            font-size: 1em; font-weight: 600;
+            border: 2px solid; border-radius: 10px;
+            cursor: pointer; transition: all 0.2s;
+            text-transform: uppercase; letter-spacing: 2px;
             background: transparent;
         }
-
         .power-btn.on { border-color: var(--red); color: var(--red); }
         .power-btn.off { border-color: var(--green); color: var(--green); }
         .power-btn:active { transform: scale(0.97); }
 
         .feedback {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
+            position: fixed; bottom: 20px; left: 50%;
             transform: translateX(-50%);
-            background: var(--amber);
-            color: var(--bg);
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 0.85em;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            z-index: 100;
+            background: var(--amber); color: var(--bg);
+            padding: 8px 20px; border-radius: 20px;
+            font-weight: 600; font-size: 0.85em;
+            opacity: 0; transition: opacity 0.3s;
+            pointer-events: none; z-index: 100;
         }
-
         .feedback.show { opacity: 1; }
 
         @media (max-width: 400px) {
             .clock-display { font-size: 2.2em; letter-spacing: 4px; }
             .tricks-grid { grid-template-columns: repeat(2, 1fr); }
+            .modes-grid { grid-template-columns: repeat(3, 1fr); }
         }
     </style>
 </head>
@@ -258,22 +238,15 @@
         <span id="status-text">{{status_text}}</span>
     </span>
     <span>CPU: <span id="cpu-temp">--</span>&deg;C</span>
+    <span>Outside: <span id="outdoor-temp">--</span>&deg;C</span>
 </div>
 
-<!-- Tricks -->
+<!-- LED Modes -->
 <div class="card">
-    <h2>Tricks</h2>
-    <div class="tricks-grid">
-        {{tricks_buttons}}
-    </div>
-</div>
-
-<!-- Settings -->
-<div class="card">
-    <h2>Settings</h2>
+    <h2>Lighting</h2>
 
     <div class="control-row">
-        <span class="control-label">LED Brightness</span>
+        <span class="control-label">Brightness</span>
         <div>
             <input type="range" id="brightness" min="0" max="100"
                    value="{{brightness}}"
@@ -283,16 +256,29 @@
         </div>
     </div>
 
-    <div class="control-row">
-        <span class="control-label">Fireworks Speed</span>
-        <div>
-            <input type="range" id="fireworks_speed" min="100" max="5000" step="100"
-                   value="{{fireworks_speed}}"
-                   oninput="document.getElementById('speed-val').textContent = this.value"
-                   onchange="updateSetting('fireworks_speed', this.value)">
-            <span class="control-value" id="speed-val">{{fireworks_speed}}</span>
+    <div style="padding-top: 10px;">
+        <div class="modes-grid">
+            {{modes_buttons}}
         </div>
     </div>
+</div>
+
+<!-- Tricks -->
+<div class="card">
+    <h2>Tricks</h2>
+    <div class="tricks-grid">
+        <button class="trick-btn" onclick="showWeather()">
+            <span class="icon">&#127777;</span>
+            <span class="name">Temperature</span>
+            <span class="desc">Show outdoor temp on tubes</span>
+        </button>
+        {{tricks_buttons}}
+    </div>
+</div>
+
+<!-- Settings -->
+<div class="card">
+    <h2>Settings</h2>
 
     <div class="control-row">
         <span class="control-label">24-Hour Mode</span>
@@ -300,16 +286,6 @@
             <input type="checkbox" id="use_24hour"
                    {{checked_24hour}}
                    onchange="updateSetting('use_24hour', this.checked)">
-            <span class="toggle-slider"></span>
-        </label>
-    </div>
-
-    <div class="control-row">
-        <span class="control-label">Fireworks</span>
-        <label class="toggle">
-            <input type="checkbox" id="fireworks_enabled"
-                   {{checked_fireworks}}
-                   onchange="updateSetting('fireworks_enabled', this.checked)">
             <span class="toggle-slider"></span>
         </label>
     </div>
@@ -355,6 +331,8 @@
 <div class="feedback" id="feedback"></div>
 
 <script>
+    var currentMode = '{{current_mode}}';
+
     function showFeedback(msg) {
         var el = document.getElementById('feedback');
         el.textContent = msg;
@@ -366,6 +344,38 @@
         fetch('/api/trick/' + name, { method: 'POST' })
             .then(function(r) { return r.json(); })
             .then(function() { showFeedback('Playing...'); });
+    }
+
+    function showWeather() {
+        fetch('/api/show-weather', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    showFeedback(data.temp_c + '\u00B0C outside');
+                } else {
+                    showFeedback('Could not fetch weather');
+                }
+            });
+    }
+
+    function setMode(name) {
+        // Update UI immediately
+        var btns = document.querySelectorAll('.mode-btn');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.remove('selected');
+        }
+        var btn = document.getElementById('mode-' + name);
+        if (btn) btn.classList.add('selected');
+        currentMode = name;
+
+        // Send to server
+        fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'led_mode=' + encodeURIComponent(name)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function() { showFeedback('Mode: ' + name.replace(/_/g, ' ')); });
     }
 
     function updateSetting(key, value) {
@@ -406,6 +416,9 @@
             .then(function(data) {
                 document.getElementById('clock-display').textContent = data.time;
                 document.getElementById('cpu-temp').textContent = data.cpu_temp;
+                if (data.outdoor_temp !== null) {
+                    document.getElementById('outdoor-temp').textContent = data.outdoor_temp;
+                }
             })
             .catch(function() {});
     }

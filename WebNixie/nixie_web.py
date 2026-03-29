@@ -28,9 +28,11 @@ import time
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from urllib.request import urlopen
 
 from nixie_driver import NixieDriver
-from nixie_tricks import TRICKS
+from nixie_tricks import TRICKS, temperature_show
+from led_modes import LED_MODES, MODE_ORDER
 
 # ---------------------------------------------------------------------------
 # Shared state between the clock thread and web server
@@ -43,8 +45,7 @@ class ClockState:
     DEFAULTS = {
         'use_24hour': True,
         'brightness': 20,
-        'fireworks_enabled': True,
-        'fireworks_speed': 2000,
+        'led_mode': 'warm_glow',
         'sleep_time': '23:00',
         'wake_time': '06:30',
         'cathode_protect': True,
@@ -117,20 +118,12 @@ class ClockEngine(threading.Thread):
         self.driver = driver
         self.state = state
         self.running = True
-        # Fireworks state
-        self._fw_rotator = 0
-        self._fw_cycle = 0
-        self._fw_red = 0
-        self._fw_green = 0
-        self._fw_blue = 0
-        self._last_fw_time = 0
         self._last_time_str = ""
         self._is_startup = True
+        self._led_start_time = time.time()
 
     def run(self):
         self.driver.setup()
-        self._fw_red = self.state.get('brightness')
-        self._last_fw_time = time.time() * 1000
 
         while self.running:
             try:
@@ -159,9 +152,15 @@ class ClockEngine(threading.Thread):
 
         # Check for trick requests
         trick_name = self.state.pop_trick_request()
-        if trick_name and trick_name in TRICKS:
-            self._play_trick(trick_name)
-            return
+        if trick_name:
+            if trick_name.startswith('_weather_'):
+                # Special: show temperature on tubes
+                temp = float(trick_name.split('_weather_')[1])
+                self._play_generator(temperature_show(temp))
+                return
+            elif trick_name in TRICKS:
+                self._play_trick(trick_name)
+                return
 
         if not self.state.clock_on:
             time.sleep(0.5)
@@ -201,46 +200,27 @@ class ClockEngine(threading.Thread):
             self.driver.display(time_str)
             self._last_time_str = time_str
 
-        # Fireworks
-        if self.state.get('fireworks_enabled'):
-            now_ms = time.time() * 1000
-            speed = self.state.get('fireworks_speed')
-            if now_ms > (self._last_fw_time + speed):
-                self._rotate_fireworks(brightness)
-                self._last_fw_time = now_ms
+        # LED mode
+        self._update_leds(brightness)
+
+        # Animated modes need faster updates; static modes can sleep longer
+        mode_name = self.state.get('led_mode')
+        if mode_name in LED_MODES and LED_MODES[mode_name][3]:
+            # Animated mode - check if it needs frequent updates
+            is_animated = LED_MODES[mode_name][3]
         else:
-            self.driver.set_leds(0, 0, 0)
+            is_animated = False
+        time.sleep(0.02 if is_animated else 0.05)
 
-        time.sleep(0.01)
-
-    def _rotate_fireworks(self, max_brightness):
-        """Rotate through RGB colors, matching the C++ fireworks algorithm."""
-        transitions = [
-            (0, 0, 1),    # add blue
-            (-1, 0, 0),   # remove red
-            (0, 1, 0),    # add green
-            (0, 0, -1),   # remove blue
-            (1, 0, 0),    # add red
-            (0, -1, 0),   # remove green
-        ]
-
-        dr, dg, db = transitions[self._fw_rotator]
-        self._fw_red += dr
-        self._fw_green += dg
-        self._fw_blue += db
-
-        # Scale to brightness
-        scale = max_brightness / 100.0 if max_brightness > 0 else 0
-        self.driver.set_leds(
-            int(self._fw_red * scale),
-            int(self._fw_green * scale),
-            int(self._fw_blue * scale)
-        )
-
-        self._fw_cycle += 1
-        if self._fw_cycle >= max_brightness:
-            self._fw_rotator = (self._fw_rotator + 1) % 6
-            self._fw_cycle = 0
+    def _update_leds(self, brightness):
+        """Update LEDs based on current mode."""
+        mode_name = self.state.get('led_mode')
+        if mode_name not in LED_MODES:
+            mode_name = 'warm_glow'
+        _, _, mode_fn, _ = LED_MODES[mode_name]
+        elapsed = time.time() - self._led_start_time
+        r, g, b = mode_fn(brightness, elapsed)
+        self.driver.set_leds(r, g, b)
 
     def _cathode_protection(self, linger_secs):
         """Cycle all digits through all tubes to prevent cathode poisoning."""
@@ -255,8 +235,11 @@ class ClockEngine(threading.Thread):
     def _play_trick(self, trick_name):
         """Play a display trick, then resume normal display."""
         _, _, trick_fn = TRICKS[trick_name]
+        self._play_generator(trick_fn())
 
-        for digits, leds, delay in trick_fn():
+    def _play_generator(self, gen):
+        """Play frames from a generator, then restore LED mode."""
+        for digits, leds, delay in gen:
             if not self.running:
                 break
             self.driver.display(digits)
@@ -264,17 +247,8 @@ class ClockEngine(threading.Thread):
                 self.driver.set_leds(*leds)
             time.sleep(delay)
 
-        # Restore fireworks state or turn off LEDs
-        if self.state.get('fireworks_enabled'):
-            brightness = self.state.get('brightness')
-            scale = brightness / 100.0 if brightness > 0 else 0
-            self.driver.set_leds(
-                int(self._fw_red * scale),
-                int(self._fw_green * scale),
-                int(self._fw_blue * scale)
-            )
-        else:
-            self.driver.set_leds(0, 0, 0)
+        # Restore LED mode
+        self._update_leds(self.state.get('brightness'))
 
         # Force time update on next tick
         self._last_time_str = ""
@@ -307,6 +281,29 @@ def get_cpu_temp():
         return "?"
 
 
+# Weather: Open-Meteo API for Droxford, Hampshire (SO32 2AR)
+WEATHER_URL = ('https://api.open-meteo.com/v1/forecast'
+               '?latitude=50.9558&longitude=-1.1253&current=temperature_2m')
+_weather_cache = {'temp': None, 'time': 0}
+
+
+def get_outdoor_temp():
+    """Fetch outdoor temperature from Open-Meteo. Cached for 10 minutes."""
+    now = time.time()
+    if _weather_cache['temp'] is not None and (now - _weather_cache['time']) < 600:
+        return _weather_cache['temp']
+    try:
+        response = urlopen(WEATHER_URL, timeout=10)
+        data = json.loads(response.read().decode('utf-8'))
+        temp = data['current']['temperature_2m']
+        _weather_cache['temp'] = temp
+        _weather_cache['time'] = now
+        return temp
+    except Exception as e:
+        print("Weather fetch error: {}".format(e))
+        return _weather_cache.get('temp')
+
+
 def render_index():
     """Render index.html with current config values substituted."""
     with open(os.path.join(TEMPLATE_DIR, 'index.html'), 'r') as f:
@@ -333,13 +330,38 @@ def render_index():
             '</button>\n'
         ).format(key=key, icon=icon, name=name, desc=desc)
 
+    # Build LED modes HTML
+    mode_icons = {
+        'warm_glow': '&#127774;', 'off': '&#9899;',
+        'ember': '&#128293;', 'cool_white': '&#10052;',
+        'deep_purple': '&#128526;', 'ocean_blue': '&#127754;',
+        'candlelight': '&#128367;', 'sunset': '&#127749;',
+        'northern_lights': '&#127752;', 'breathing': '&#128172;',
+        'fireworks': '&#127878;', 'lava': '&#127755;',
+        'storm': '&#9889;', 'campfire': '&#127869;',
+    }
+    current_mode = config.get('led_mode', 'warm_glow')
+    modes_html = ''
+    for key in MODE_ORDER:
+        if key not in LED_MODES:
+            continue
+        name, desc, _, is_animated = LED_MODES[key]
+        icon = mode_icons.get(key, '&#9733;')
+        selected = ' selected' if key == current_mode else ''
+        modes_html += (
+            '<button class="mode-btn{selected}" id="mode-{key}" '
+            'onclick="setMode(\'{key}\')">'
+            '<span class="icon">{icon}</span>'
+            '<span class="name">{name}</span>'
+            '</button>\n'
+        ).format(key=key, icon=icon, name=name, selected=selected)
+
     # Substitute template variables
     clock_on = state.clock_on
     html = html.replace('{{tricks_buttons}}', tricks_html)
+    html = html.replace('{{modes_buttons}}', modes_html)
     html = html.replace('{{brightness}}', str(config['brightness']))
-    html = html.replace('{{fireworks_speed}}', str(config['fireworks_speed']))
     html = html.replace('{{checked_24hour}}', 'checked' if config['use_24hour'] else '')
-    html = html.replace('{{checked_fireworks}}', 'checked' if config['fireworks_enabled'] else '')
     html = html.replace('{{checked_cathode}}', 'checked' if config['cathode_protect'] else '')
     html = html.replace('{{sleep_time}}', config['sleep_time'])
     html = html.replace('{{wake_time}}', config['wake_time'])
@@ -347,6 +369,7 @@ def render_index():
     html = html.replace('{{status_text}}', 'Running' if clock_on else 'Sleeping')
     html = html.replace('{{power_class}}', 'on' if clock_on else 'off')
     html = html.replace('{{power_text}}', 'Turn Off Display' if clock_on else 'Turn On Display')
+    html = html.replace('{{current_mode}}', current_mode)
 
     return html
 
@@ -405,11 +428,13 @@ class NixieHTTPHandler(BaseHTTPRequestHandler):
             self._send_json({'config': state.get_all(), 'clock_on': state.clock_on})
 
         elif path == '/api/status':
+            outdoor = get_outdoor_temp()
             self._send_json({
                 'clock_on': state.clock_on,
                 'config': state.get_all(),
                 'time': datetime.now().strftime('%H:%M:%S'),
                 'cpu_temp': get_cpu_temp(),
+                'outdoor_temp': outdoor,
             })
 
         elif path == '/api/temperature':
@@ -429,11 +454,15 @@ class NixieHTTPHandler(BaseHTTPRequestHandler):
         if path == '/api/config':
             data = self._read_body()
 
-            for key in ('brightness', 'fireworks_speed'):
-                if key in data:
-                    state.set(key, int(data[key]))
+            if 'brightness' in data:
+                state.set('brightness', int(data['brightness']))
 
-            for key in ('use_24hour', 'fireworks_enabled', 'cathode_protect'):
+            if 'led_mode' in data:
+                mode = data['led_mode']
+                if mode in LED_MODES:
+                    state.set('led_mode', mode)
+
+            for key in ('use_24hour', 'cathode_protect'):
                 if key in data:
                     val = data[key]
                     if isinstance(val, str):
@@ -463,6 +492,14 @@ class NixieHTTPHandler(BaseHTTPRequestHandler):
                 state.clock_on = True
             self._send_json({'ok': True, 'clock_on': state.clock_on})
 
+        elif path == '/api/show-weather':
+            temp = get_outdoor_temp()
+            if temp is not None:
+                state.request_trick('_weather_{}'.format(temp))
+                self._send_json({'ok': True, 'temp_c': temp})
+            else:
+                self._send_json({'ok': False, 'error': 'Could not fetch weather'})
+
         else:
             self.send_error(404)
 
@@ -490,21 +527,26 @@ def main():
     engine = ClockEngine(driver, state)
     engine.start()
 
-    # Start the HTTP server
+    # Start the HTTP server in a thread so signal handling works
     server = HTTPServer(('0.0.0.0', port), NixieHTTPHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    print("Listening on port {}".format(port))
 
     def shutdown(sig, frame):
         print("\nShutting down...")
         engine.stop()
-        engine.join(timeout=5)
         server.shutdown()
+        engine.join(timeout=3)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    print("Listening on port {}".format(port))
-    server.serve_forever()
+    # Block main thread until signal received
+    while True:
+        time.sleep(1)
 
 
 if __name__ == '__main__':
