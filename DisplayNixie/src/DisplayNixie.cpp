@@ -135,7 +135,9 @@ tm getRTCDate() {
 	if (use12hour)
 	{
 		date.tm_hour = bcdToDec(wiringPiI2CReadReg8(fileDesc, HOUR_REGISTER));
-		if (date.tm_hour > 12)
+		if (date.tm_hour == 0)
+			date.tm_hour = 12;
+		else if (date.tm_hour > 12)
 			date.tm_hour -= 12;
 	}
 	else
@@ -221,8 +223,9 @@ void funcUp(void) {
 	static unsigned long buttonTime = 0;
 	if ((millis() - buttonTime) > DEBOUNCE_DELAY) {
         // Up button speeds up Fireworks
-		fireworksCyclePeriod = (fireworksCyclePeriod - INIT_CYCLE_BUMP);
-		if (fireworksCyclePeriod < 0) {
+		if (fireworksCyclePeriod > INIT_CYCLE_BUMP) {
+			fireworksCyclePeriod = (fireworksCyclePeriod - INIT_CYCLE_BUMP);
+		} else {
 			fireworksCyclePeriod = 0;
 		}
 		printf("Up button was pressed. Frequency=%lu\n", fireworksCyclePeriod);
@@ -234,10 +237,10 @@ void funcDown(void) {
 	static unsigned long buttonTime = 0;
 	if ((millis() - buttonTime) > DEBOUNCE_DELAY) {
         // Down button slows down Fireworks
-		fireworksCyclePeriod = (fireworksCyclePeriod - INIT_CYCLE_BUMP);
+		fireworksCyclePeriod = (fireworksCyclePeriod + INIT_CYCLE_BUMP);
 		printf("Down button was pressed. Frequency=%lu\n", fireworksCyclePeriod);
+		buttonTime = millis();
 	}
-	buttonTime = millis();
 }
 
 uint32_t get32Rep(char * _stringToDisplay, int start) {
@@ -567,6 +570,9 @@ int main(int argc, char* argv[]) {
 	HV5222 = !digitalRead(R5222_PIN);
 	if (HV5222) puts("R52222 resistor detected. HV5222 algorithm is used.");
 
+    // Setup LE pin for output
+	pinMode(LEpin, OUTPUT);
+
     // Loop forever displaying the time
 	long buttonDelay = millis();
     unsigned long lastRotateFireworks = millis();
@@ -623,8 +629,6 @@ int main(int argc, char* argv[]) {
             }
 		}
 
-		pinMode(LEpin, OUTPUT); // todo: move this to outside of loop, so run one-time only???
-		
         // On startup and every ten minutes, invoke short cathode poisoning protection 
         bool isTimeForLongProtection = (strcmp(_stringToDisplay, cathodeProtectionLongTime[0].c_str()) == 0) || (strcmp(_stringToDisplay, cathodeProtectionLongTime[1].c_str()) == 0);
         bool isTimeForShortProtection = ((_stringToDisplay[DISPLAY_POS_S2] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_S1] == ASCII_ZERO) && (_stringToDisplay[DISPLAY_POS_M2] == ASCII_ZERO));
