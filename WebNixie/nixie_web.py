@@ -371,6 +371,8 @@ def render_index():
     html = html.replace('{{checked_cathode}}', 'checked' if config['cathode_protect'] else '')
     html = html.replace('{{sleep_time}}', config['sleep_time'])
     html = html.replace('{{wake_time}}', config['wake_time'])
+    html = html.replace('{{cathode_time_1}}', config.get('cathode_time_1', '02:00'))
+    html = html.replace('{{cathode_time_2}}', config.get('cathode_time_2', '04:00'))
     html = html.replace('{{status_class}}', 'on' if clock_on else 'off')
     html = html.replace('{{status_text}}', 'Running' if clock_on else 'Sleeping')
     html = html.replace('{{power_class}}', 'on' if clock_on else 'off')

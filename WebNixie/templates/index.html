@@ -299,6 +299,20 @@
             <span class="toggle-slider"></span>
         </label>
     </div>
+
+    <div class="control-row">
+        <span class="control-label">Deep Clean 1</span>
+        <input type="time" id="cathode_time_1"
+               value="{{cathode_time_1}}"
+               onchange="updateSetting('cathode_time_1', this.value)">
+    </div>
+
+    <div class="control-row">
+        <span class="control-label">Deep Clean 2</span>
+        <input type="time" id="cathode_time_2"
+               value="{{cathode_time_2}}"
+               onchange="updateSetting('cathode_time_2', this.value)">
+    </div>
 </div>
 
 <!-- Schedule -->
