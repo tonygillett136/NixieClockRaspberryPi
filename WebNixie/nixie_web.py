@@ -120,6 +120,7 @@ class ClockEngine(threading.Thread):
         self.running = True
         self._last_time_str = ""
         self._is_startup = True
+        self._last_protect_time = ""
         self._led_start_time = time.time()
 
     def run(self):
@@ -188,8 +189,13 @@ class ClockEngine(threading.Thread):
             ct2 = self.state.get('cathode_time_2')
             is_long = current_hm in (ct1, ct2) and current_sec == "00"
 
-            if self._is_startup or is_ten_min or is_long:
+            # Only run once per trigger time (avoid repeats within the same second)
+            protect_key = time_str if (is_ten_min or is_long) else ""
+            should_run = self._is_startup or ((is_ten_min or is_long) and protect_key != self._last_protect_time)
+
+            if should_run:
                 self._is_startup = False
+                self._last_protect_time = protect_key
                 linger = 10.0 if is_long else 0.1
                 self._cathode_protection(linger)
                 return
