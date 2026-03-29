@@ -1,0 +1,3 @@
+flask
+spidev
+RPi.GPIO
